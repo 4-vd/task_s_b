@@ -97,7 +97,7 @@
     }
     var gv = A[q.id] || {};
     return L.rows(q, A).map(function (r) {
-      return '<div class="row' + (showErr && !gv[r.c] ? ' missing' : '') + '"><div class="row-title">' + esc(r.t) + '</div>' +
+      return '<div id="row-' + q.id + '-' + r.c + '" class="row' + (showErr && !gv[r.c] ? ' missing' : '') + '"><div class="row-title">' + esc(r.t) + '</div>' +
         '<div class="chips' + (q.cols.length % 3 === 0 ? ' c3' : '') + '">' + q.cols.map(function (c) {
           return optHtml('radio', q, c, gv[r.c] === c.c, false, r.c);
         }).join('') + '</div></div>';
@@ -150,7 +150,13 @@
     if (!id || el.dataset.etc) return;
     var q = findQ(id), A = st.A, c = Number(el.value);
     if (q.type === 'single') A[id] = c;
-    else if (q.type === 'grid') { A[id] = Object.assign({}, A[id]); A[id][Number(el.dataset.r)] = c; }
+    else if (q.type === 'grid') {
+      var row = Number(el.dataset.r), firstTime = !(A[id] && A[id][row]);
+      A[id] = Object.assign({}, A[id]); A[id][row] = c;
+      save(); rerender();
+      if (firstTime) scrollToNextRow(q, row);
+      return;
+    }
     else {
       var cur = L.multiValue(q, A), opt = q.options.filter(function (o) { return o.c === c; })[0];
       if (!el.checked) cur = cur.filter(function (x) { return x !== c; });
@@ -163,6 +169,18 @@
       A[id] = cur;
     }
     save(); rerender();
+  }
+  // 항목별 선택 문항: 한 항목을 처음 고르면 아직 답하지 않은 다음 항목으로 부드럽게 내려간다.
+  function scrollToNextRow(q, row) {
+    var rows = L.rows(q, st.A), gv = st.A[q.id] || {}, next = null, passed = false;
+    rows.forEach(function (r) {
+      if (r.c === row) passed = true;
+      else if (passed && !next && !gv[r.c]) next = r;
+    });
+    var el = next && document.getElementById('row-' + q.id + '-' + next.c);
+    if (!el) return;
+    var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 72, behavior: calm ? 'auto' : 'smooth' });
   }
   function onInput(e) {
     var el = e.target;

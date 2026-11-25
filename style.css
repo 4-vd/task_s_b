@@ -149,3 +149,6 @@ pre { white-space: pre-wrap; word-break: break-all; font-size: 13px; background:
 .st-num { flex: none; width: 96px; text-align: right; font-size: 15px; color: var(--sub); }
 .st-num b { color: var(--ink); }
 .st-etc { margin-top: 10px; font-size: 15px; color: var(--sub); }
+
+/* 선지 수가 홀수면 마지막 선지를 한 줄 전체로 */
+.chips:not(.c3) .opt:last-child:nth-child(odd) { grid-column: 1 / -1; }
