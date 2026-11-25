@@ -152,3 +152,27 @@ pre { white-space: pre-wrap; word-break: break-all; font-size: 13px; background:
 
 /* 선지 수가 홀수면 마지막 선지를 한 줄 전체로 */
 .chips:not(.c3) .opt:last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+/* 문구 편집: 설문 화면 모양의 카드 */
+.ed-card { margin-top: 14px; border-radius: 16px; overflow: hidden; border: 1px solid var(--line); background: var(--bg); }
+.ed-card .head { padding: 18px 16px 14px; }
+.ed-card .body { padding: 14px 16px 16px; }
+.ed-f { margin-top: 8px; }
+.ed-f:first-child { margin-top: 0; }
+.ed-f label { display: block; font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: 3px; }
+.ed-f textarea { display: block; width: 100%; padding: 10px 12px; font: inherit; line-height: 1.5; border: 2px dashed var(--line); border-radius: 10px; background: #fff; resize: none; overflow: hidden; }
+.ed-f textarea:focus { outline: 3px solid #9dbdf7; border-style: solid; border-color: var(--accent); }
+.ed-f textarea.big { font-family: var(--head); font-size: 22px; font-weight: 700; }
+.ed-f textarea.sec { font-size: 15px; font-weight: 600; color: var(--accent); }
+.ed-f.changed textarea { border-style: solid; border-color: var(--accent); background: var(--accent-soft); }
+.ed-sub { margin: 16px 0 6px; font-size: 14px; font-weight: 700; color: var(--sub); }
+.ed-opt { display: flex; align-items: flex-start; gap: 10px; margin-top: 8px; }
+.ed-opt .ed-f { flex: 1; margin-top: 0; }
+.ed-mark { flex: none; width: 22px; height: 22px; margin-top: 13px; border: 2px solid #9aa3b0; background: #fff; }
+.ed-mark.ro { border-radius: 50%; }
+.ed-mark.ch { border-radius: 5px; }
+.ed-mark.sq { border: 0; background: var(--ink); width: 8px; height: 8px; margin: 20px 7px 0; border-radius: 50%; }
+#ed-status { font-size: 15px; }
+.nav-in .btn.ghost[data-card] { flex: 0 0 26%; }
+
+.panel .btn.ghost { margin-top: 10px; }

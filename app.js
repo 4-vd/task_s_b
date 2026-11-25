@@ -10,7 +10,7 @@
   L.textItems(S).forEach(function (it) { defaults[it.key] = it.obj[it.prop]; });
 
   var st = { A: {}, page: -1, t0: Date.now(), rid: newId(), key: '' };
-  var showErr = false, sending = false, sendError = '';
+  var showErr = false, sending = false, sendError = '', resumePage = -1;
 
   function newId() {
     var b = new Uint8Array(12);
@@ -111,7 +111,10 @@
     if (st.page < 0) {
       app.innerHTML = '<div class="wrap"><div class="panel"><h1>' + esc(S.intro.title) + '</h1><p>' + esc(S.intro.body) + '</p>' +
         (URL_ ? '' : '<p class="note">미리보기 상태입니다. 응답은 저장되지 않습니다.</p>') +
-        '<button class="btn" data-act="start">시작하기</button></div></div>';
+        (resumePage >= 0
+          ? '<p class="ok">이 기기에 응답하던 내용이 남아 있습니다.</p><button class="btn" data-act="resume">이어서 하기</button>' +
+            '<button class="btn ghost" style="flex:none" data-act="fresh">처음부터 새로 하기</button>'
+          : '<button class="btn" data-act="start">시작하기</button>') + '</div></div>';
       return;
     }
     var p = ps[st.page], q = p.q, last = st.page === ps.length - 1;
@@ -221,6 +224,8 @@
     var act = e.target.dataset && e.target.dataset.act;
     if (!act) return;
     if (act === 'start') go(0);
+    else if (act === 'resume') { var rp = resumePage; resumePage = -1; go(rp); }
+    else if (act === 'fresh') { resumePage = -1; st = { A: {}, page: -1, t0: Date.now(), rid: newId(), key: st.key }; go(0); }
     else if (act === 'prev') go(st.page - 1);
     else if (act === 'next') {
       if (!L.answered(pages()[st.page].q, st.A)) { showErr = true; render(); window.scrollTo(0, 0); }
@@ -229,7 +234,7 @@
     else if (act === 'submit') submit();
     else if (act === 'reset') {
       if (st.page >= 0 && !confirm('지금까지 고른 답이 모두 지워집니다. 처음부터 다시 하시겠습니까?')) return;
-      st = { A: {}, page: -1, t0: Date.now(), rid: newId(), key: st.key };
+      st = { A: {}, page: -1, t0: Date.now(), rid: newId(), key: st.key }; resumePage = -1;
       save(); showErr = false; sendError = ''; render(); window.scrollTo(0, 0);
     }
   }
@@ -380,45 +385,101 @@
     return h;
   }
 
-  function textsHtml() {
-    var h = '<p style="margin-top:16px">문장을 고친 뒤 저장을 누르면 바로 설문에 반영됩니다. 칸을 비우고 저장하면 원래 문구로 돌아갑니다. 선지나 문항을 추가·삭제하는 것은 여기서 할 수 없습니다.</p>' +
-      '<p class="note">응답을 받는 도중에 뜻이 달라지게 고치면, 고치기 전과 후의 응답을 같은 질문으로 볼 수 없게 됩니다.</p>', group = '';
-    L.textItems(S).forEach(function (it) {
-      if (!CFG.SHOW_IMAGES && /\.cap$/.test(it.key)) return;
-      if (it.group !== group) { group = it.group; h += '<div class="ed-group"><h2>' + esc(group) + '</h2></div>'; }
-      var cur = it.obj[it.prop], changed = cur !== defaults[it.key];
-      h += '<div class="ed-item' + (changed ? ' changed' : '') + '"><label for="e-' + it.key + '">' + esc(it.label) + '</label>' +
-        '<textarea id="e-' + it.key + '" data-key="' + it.key + '" rows="' + (cur.length > 40 ? 3 : 1) + '" maxlength="500">' + esc(cur) + '</textarea>' +
-        (changed ? '<div class="ed-orig">원래 문구: ' + esc(defaults[it.key]) + '</div>' : '') + '</div>';
+  // 문구 편집: 설문 화면처럼 한 장에 한 문항씩 넘겨 가며 고친다. 고친 내용은 저장을 누를 때 한꺼번에 보낸다.
+  var draft = null, dirty = false, edCard = 0;
+  function ensureDraft() {
+    if (draft) return;
+    draft = {};
+    L.textItems(S).forEach(function (it) { draft[it.key] = it.obj[it.prop]; });
+  }
+  function editCards() {
+    var cards = [{ intro: true, name: '첫 화면' }];
+    S.sections.forEach(function (sec) {
+      sec.questions.forEach(function (q, i) { cards.push({ sec: sec, q: q, first: i === 0, name: q.id + ' ' + q.title }); });
     });
-    return h;
+    return cards;
+  }
+  function field(key, label, cls) {
+    var v = draft[key] === undefined ? '' : draft[key], changed = v.trim() !== defaults[key];
+    return '<div class="ed-f' + (changed ? ' changed' : '') + '">' + (label ? '<label for="e-' + key + '">' + label + '</label>' : '') +
+      '<textarea id="e-' + key + '" class="' + (cls || '') + '" data-key="' + key + '" rows="1" maxlength="500" placeholder="비우면 원래 문구로 돌아갑니다">' +
+      esc(v) + '</textarea>' + (changed ? '<div class="ed-orig">원래: ' + esc(defaults[key]) + '</div>' : '') + '</div>';
+  }
+  function textsHtml() {
+    ensureDraft();
+    var cards = editCards();
+    if (edCard >= cards.length) edCard = cards.length - 1;
+    var c = cards[edCard], h = '';
+    h += '<div class="resp-bar"><label>바로 가기 <select id="ed-jump">' + cards.map(function (x, i) {
+      var n = x.name.length > 26 ? x.name.slice(0, 26) + '…' : x.name;
+      return '<option value="' + i + '"' + (i === edCard ? ' selected' : '') + '>' + (i + 1) + '. ' + esc(n) + '</option>';
+    }).join('') + '</select></label></div>';
+    h += '<div class="ed-card"><div class="head">';
+    if (c.intro) {
+      h += '<div class="head-sec">첫 화면</div>' + field('intro.title', '설문 제목', 'big') +
+        '<div class="head-meta"><span class="q-rule">안내 화면</span><span class="count"><b>1</b> / ' + cards.length + '</span></div></div>' +
+        '<div class="body">' + field('intro.body', '안내문') + '</div></div>';
+      return h + statusHtml();
+    }
+    var q = c.q, p = 'q.' + q.id, sp = 'sec.' + c.sec.id;
+    if (c.first) {
+      h += field(sp + '.title', '단계 제목(이 단계의 모든 문항 위에 표시)', 'sec');
+      if (c.sec.desc !== undefined) h += field(sp + '.desc', '단계 설명(이 단계 첫 문항에 표시)');
+    } else h += '<div class="head-sec">' + esc(draft[sp + '.title']) + '</div>';
+    h += field(p + '.title', '질문', 'big') +
+      '<div class="head-meta"><span class="q-rule">' + ruleText(q) + '</span><span class="count"><b>' + (edCard + 1) + '</b> / ' + cards.length + '</span></div></div>';
+    h += '<div class="body">';
+    if (q.help !== undefined) h += field(p + '.help', '안내문');
+    if (q.cap !== undefined && CFG.SHOW_IMAGES) h += field(p + '.cap', '그림 설명');
+    function optField(key, mark) {
+      return '<div class="ed-opt"><span class="ed-mark ' + mark + '"></span>' + field(key, '') + '</div>';
+    }
+    if (q.type === 'grid') {
+      h += '<div class="ed-sub">항목</div>' + q.rows.map(function (r) { return optField(p + '.r.' + r.c, 'sq'); }).join('') +
+        '<div class="ed-sub">항목마다 나오는 선택지</div>' + q.cols.map(function (x) { return optField(p + '.c.' + x.c, 'ro'); }).join('');
+    } else {
+      h += '<div class="ed-sub">선지</div>' + q.options.map(function (o) {
+        return optField(p + '.o.' + o.c, q.type === 'multi' ? 'ch' : 'ro');
+      }).join('');
+    }
+    return h + '</div></div>' + statusHtml();
+  }
+  function statusText() {
+    return edBusy ? '저장 중…' : edMsg || (dirty ? '저장하지 않은 변경이 있습니다. 다른 문항으로 넘어가도 유지되며, 저장을 눌러야 설문에 반영됩니다.' : '문장을 고치고 저장을 누르면 바로 설문에 반영됩니다.');
+  }
+  function statusHtml() {
+    return '<p id="ed-status" class="' + (dirty && !edMsg ? 'note' : 'ok') + '">' + esc(statusText()) + '</p>';
+  }
+  function growAll() {
+    app.querySelectorAll('textarea[data-key]').forEach(function (t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 2 + 'px'; });
   }
 
   function adminRender(keepScroll) {
     var y = keepScroll ? window.scrollY : 0;
     var nav = edTab === 'resp'
       ? '<button class="btn ghost" style="flex:1" data-step="-1">이전 응답</button><button class="btn" data-step="1">다음 응답</button>'
-      : (edMsg ? '<span class="ok" style="margin:0;flex:1">' + esc(edMsg) + '</span>' : '') +
-        '<button class="btn" id="ed-save"' + (edBusy ? ' disabled' : '') + '>' + (edBusy ? '저장 중…' : '저장') + '</button>';
+      : '<button class="btn ghost" data-card="-1">이전</button><button class="btn" id="ed-save"' + (edBusy ? ' disabled' : '') + '>' +
+        (edBusy ? '저장 중…' : '저장') + '</button><button class="btn ghost" data-card="1">다음</button>';
     app.innerHTML = '<div class="wrap"><h1>설문 관리</h1>' + tabsHtml() +
       (edTab === 'resp' ? responsesHtml() : edTab === 'stat' ? statsHtml() : textsHtml()) + '</div>' +
       (edTab === 'stat' ? '' : '<div class="nav"><div class="nav-in">' + nav + '</div></div>');
+    if (edTab === 'text') growAll();
     window.scrollTo(0, y);
   }
 
   function saveTexts() {
     var texts = {};
-    app.querySelectorAll('textarea[data-key]').forEach(function (t) {
-      var v = t.value.trim();
-      if (v && v !== defaults[t.dataset.key]) texts[t.dataset.key] = v;
+    Object.keys(draft).forEach(function (k) {
+      var v = String(draft[k]).trim();
+      if (v && v !== defaults[k]) texts[k] = v;
     });
     edBusy = true; edMsg = ''; adminRender(true);
     post({ action: 'saveTexts', pw: edPw, texts: texts }).then(function (r) {
       edBusy = false;
       if (!r || !r.ok) throw new Error();
       L.applyTexts(S, Object.assign({}, defaults, texts)); lsSet(TEXTS, texts);
-      edMsg = '저장했습니다.';
-    }).catch(function () { edBusy = false; edMsg = '저장하지 못했습니다. 다시 시도하세요.'; })
+      draft = null; dirty = false; edMsg = '저장했습니다. 설문에 반영되었습니다.';
+    }).catch(function () { edBusy = false; edMsg = '저장하지 못했습니다. 고친 내용은 남아 있으니 다시 저장을 눌러 주세요.'; })
       .then(function () { adminRender(true); });
   }
 
@@ -427,12 +488,23 @@
       var d = e.target.dataset || {};
       if (d.tab) { edTab = d.tab; edMsg = ''; adminRender(); }
       else if (d.step) { rIdx = Math.max(0, rIdx + Number(d.step)); adminRender(); }
+      else if (d.card) { edCard = Math.max(0, edCard + Number(d.card)); edMsg = ''; adminRender(); }
       else if (d.reload) { adminRender(); loadResponses(); }
       else if (e.target.id === 'ed-save') saveTexts();
     });
     app.addEventListener('change', function (e) {
       if (e.target.id === 'r-filter') { rFilter = e.target.value; rIdx = 0; adminRender(); }
+      else if (e.target.id === 'ed-jump') { edCard = Number(e.target.value); edMsg = ''; adminRender(); }
     });
+    app.addEventListener('input', function (e) {
+      var t = e.target;
+      if (!t.dataset || !t.dataset.key || !draft) return;
+      draft[t.dataset.key] = t.value; dirty = true; edMsg = '';
+      t.style.height = 'auto'; t.style.height = t.scrollHeight + 2 + 'px';
+      var s = document.getElementById('ed-status');
+      if (s) { s.className = 'note'; s.textContent = statusText(); }
+    });
+    window.addEventListener('beforeunload', function (e) { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
   }
 
   // ---------- 시작 ----------
@@ -450,17 +522,21 @@
       if (JSON.stringify(r.texts) === before) return;
       setTexts(r.texts);
       if (!params.get('edit')) rerender();
+      else if (!dirty) { draft = null; if (edPw && edTab === 'text') adminRender(true); }
     }).catch(function () { /* 연결이 안 되면 받아 둔 문구로 계속 진행 */ });
   }
 
   setTexts(lsGet(TEXTS));
   if (params.get('edit')) { adminEvents(); editorLogin(); }
   else {
-    var saved = lsGet(STORE);
-    if (saved && saved.A && saved.rid) st = saved;
-    if (params.get('k')) st.key = params.get('k');
+    // 응답하던 내용이 남아 있어도 항상 첫 화면에서 시작하고, 이어서 할지 새로 할지 고르게 한다.
+    // 다른 배포 링크로 들어왔거나 하루가 지난 내용은 버린다.
+    var saved = lsGet(STORE), k = params.get('k') || '';
+    var usable = saved && saved.A && saved.rid && (saved.key || '') === k && Date.now() - saved.t0 < 24 * 3600 * 1000;
+    if (usable && saved.page >= 0 && Object.keys(saved.A).length) { st = saved; resumePage = st.page; st.page = -1; }
+    st.key = k;
     if (!URL_ && params.get('page')) st.page = Number(params.get('page')) - 1;
-    save();
+    if (resumePage < 0) save();
     app.addEventListener('change', onChange);
     app.addEventListener('input', onInput);
     app.addEventListener('click', onClick);
