@@ -275,14 +275,18 @@
     return out.length ? out : null;
   }
 
+  function isTest(p) { return String(p).indexOf('테스트') === 0; }
   function filteredRows() {
     var pi = resp.headers.indexOf('배포경로');
-    return resp.rows.filter(function (r) { return !rFilter || r[pi] === rFilter; });
+    // '전체'에서는 이름이 '테스트'로 시작하는 경로를 뺀다. 테스트 응답은 그 경로를 직접 골라야 보인다.
+    return resp.rows.filter(function (r) { return rFilter ? r[pi] === rFilter : !isTest(r[pi]); });
   }
   function filterBarHtml() {
     var pi = resp.headers.indexOf('배포경로'), paths = [];
     resp.rows.forEach(function (r) { if (paths.indexOf(r[pi]) < 0) paths.push(r[pi]); });
-    return '<div class="resp-bar"><label>배포 경로 <select id="r-filter"><option value="">전체 (' + resp.rows.length + '건)</option>' +
+    var real = resp.rows.filter(function (r) { return !isTest(r[pi]); }).length;
+    return '<div class="resp-bar"><label>배포 경로 <select id="r-filter"><option value="">전체 (' + real + '건' +
+      (real < resp.rows.length ? ', 테스트 제외' : '') + ')</option>' +
       paths.map(function (p) {
         return '<option value="' + esc(p) + '"' + (p === rFilter ? ' selected' : '') + '>' + esc(p) + '</option>';
       }).join('') + '</select></label><button class="link" data-reload="1" style="margin:0">새로 고침</button></div>';
