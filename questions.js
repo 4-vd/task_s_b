@@ -36,6 +36,7 @@
   function roofVentPowered(a) { return q6(a, 1) >= 3; }
   function usesMotor(a) { return [1, 2, 3, 4].some(function (r) { return q6(a, r) >= 3; }); }
   function owns(a, row) { return q6(a, row) >= 2; }
+  function ownsAny(a) { for (var r = 1; r <= 11; r++) { if (owns(a, r)) return true; } return false; }
   function picks(a, id, exclude) {
     return (a[id] || []).filter(function (c) { return exclude.indexOf(c) < 0; });
   }
@@ -104,9 +105,11 @@
         id: 'S3', title: '설비 사용 중 불편',
         questions: [
           { id: 'Q9', type: 'multi', title: '현재 사용 중인 설비 중 사용하기 불편한 설비는 무엇입니까?',
+            showIf: ownsAny,
             filter: function (a, c) { return c === 12 || owns(a, c); },
             options: equipOpts('불편한 설비 없음') },
           { id: 'Q10', type: 'multi', title: '하우스 설비를 사용하면서 어떤 점이 불편하십니까?',
+            showIf: ownsAny,
             options: opts([
               '설비 작동·확인에 많은 시간과 노동력이 필요함(잦은 방문, 외출·여행의 어려움 등)',
               '설비 사용 방법이 복잡함',
@@ -125,9 +128,10 @@
         id: 'S4', title: '설비 고장과 작동 이상',
         questions: [
           { id: 'Q11a', type: 'single', title: '최근 5년간 설비가 고장 나거나 제대로 작동하지 않은 적이 있습니까?',
+            showIf: ownsAny,
             options: opts(['여러 번 있음', '한두 번 있음', '없음']) },
           { id: 'Q11', type: 'multi', title: '설비 고장이나 작동 문제로 어떤 어려움이나 피해를 겪으셨습니까?',
-            showIf: function (a) { return a.Q11a === 1 || a.Q11a === 2; },
+            showIf: function (a) { return ownsAny(a) && (a.Q11a === 1 || a.Q11a === 2); },
             options: opts([
               '설비의 작동 이상을 뒤늦게 알게 됨',
               '고장 원인을 파악하기 어려웠음',
@@ -137,7 +141,7 @@
               { t: '특별한 어려움이나 피해 없음', ex: true }
             ]) },
           { id: 'Q12', type: 'multi', title: '설비가 제대로 작동하지 않는다는 사실을 어떻게 알게 되셨습니까?',
-            showIf: function (a) { return a.Q11a === 1 || a.Q11a === 2; },
+            showIf: function (a) { return ownsAny(a) && (a.Q11a === 1 || a.Q11a === 2); },
             options: opts([
               '현장에서 직접 설비의 움직임이나 소리로 확인',
               '실제 하우스 온도·습도 등이 설정값과 달라서 확인',
