@@ -414,22 +414,26 @@
   }
 
   // ---------- 시작 ----------
-  function loadTexts() {
-    if (!URL_) return Promise.resolve(null);
-    var ctl = new AbortController(), timer = setTimeout(function () { ctl.abort(); }, 5000);
-    return fetch(URL_, { signal: ctl.signal }).then(function (r) { return r.json(); }).then(function (r) {
-      clearTimeout(timer);
-      if (r && r.ok && r.texts) { lsSet(TEXTS, r.texts); return r.texts; }
-      return lsGet(TEXTS);
-    }).catch(function () { clearTimeout(timer); return lsGet(TEXTS); });
+  // 화면은 기본 문구(또는 지난번에 받아 둔 문구)로 바로 띄우고, 수정된 문구는 뒤에서 받아 반영한다.
+  function setTexts(texts) {
+    L.applyTexts(S, Object.assign({}, defaults, texts || {}));
+    document.title = S.intro.title;
+  }
+  function refreshTexts() {
+    if (!URL_) return;
+    var before = JSON.stringify(lsGet(TEXTS) || {});
+    fetch(URL_).then(function (r) { return r.json(); }).then(function (r) {
+      if (!r || !r.ok || !r.texts) return;
+      lsSet(TEXTS, r.texts);
+      if (JSON.stringify(r.texts) === before) return;
+      setTexts(r.texts);
+      if (!params.get('edit')) rerender();
+    }).catch(function () { /* 연결이 안 되면 받아 둔 문구로 계속 진행 */ });
   }
 
-  app.innerHTML = '<div class="wrap"><div class="panel"><p>불러오는 중…</p></div></div>';
-  loadTexts().then(function (texts) {
-    L.applyTexts(S, texts);
-    document.title = S.intro.title;
-    if (params.get('edit')) { adminEvents(); editorLogin(); return; }
-
+  setTexts(lsGet(TEXTS));
+  if (params.get('edit')) { adminEvents(); editorLogin(); }
+  else {
     var saved = lsGet(STORE);
     if (saved && saved.A && saved.rid) st = saved;
     if (params.get('k')) st.key = params.get('k');
@@ -439,5 +443,6 @@
     app.addEventListener('input', onInput);
     app.addEventListener('click', onClick);
     render();
-  });
+  }
+  refreshTexts();
 })();
