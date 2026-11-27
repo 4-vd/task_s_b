@@ -176,3 +176,7 @@ pre { white-space: pre-wrap; word-break: break-all; font-size: 13px; background:
 .nav-in .btn.ghost[data-card] { flex: 0 0 26%; }
 
 .panel .btn.ghost { margin-top: 10px; }
+
+/* 짧은 선지가 많은 문항(월 선택 등)은 세 칸으로 */
+.opts.compact { grid-template-columns: repeat(3, 1fr); }
+.opts.compact .opt { min-height: 58px; padding: 10px 12px; gap: 8px; }

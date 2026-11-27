@@ -85,7 +85,7 @@
       var mv = L.multiValue(q, A);
       var exOn = L.options(q, A).some(function (o) { return o.ex && mv.indexOf(o.c) >= 0; });
       var full = q.max && !exOn && mv.length >= q.max;
-      return '<div class="opts">' + L.options(q, A).map(function (o) {
+      return '<div class="opts' + (q.compact ? ' compact' : '') + '">' + L.options(q, A).map(function (o) {
         var on = mv.indexOf(o.c) >= 0;
         var s = optHtml('checkbox', q, o, on, full && !on && !o.ex);
         if (o.other && on) {
